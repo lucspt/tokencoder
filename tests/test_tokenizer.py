@@ -1,3 +1,5 @@
+import json
+import string
 from typing import Callable
 from pathlib import Path
 
@@ -11,8 +13,22 @@ def test_subclasses_encoding() -> None:
     assert issubclass(Tokenizer, Encoding)
 
 
+@pytest.fixture(scope="module")
+def text() -> str:
+    return "\n".join(
+        [
+            string.ascii_letters,
+            string.digits,
+            string.octdigits,
+            string.whitespace,
+            string.punctuation,
+        ]
+    )
+
+
 @pytest.mark.parametrize(
-    "name,special_tokens,", [("one", {"<|endoftext|>", "<|fim_start|>"}), ("two", {})]
+    "name,special_tokens,",
+    [("one", {"<|endoftext|>", "<|fim_start|>"}), ("two", set())],
 )
 def test_from_file(
     name: str,
@@ -28,6 +44,7 @@ def test_from_file(
     tokenizer = Tokenizer.from_file(pth)
     assert isinstance(tokenizer, Tokenizer)
     assert tokenizer.name == name
+    assert tokenizer.special_tokens_set == special_tokens
 
 
 def test_from_file_without_extension(
@@ -36,3 +53,26 @@ def test_from_file_without_extension(
     name = "test"
     train_tokenizer(name=name, save_dir=tmp_path)
     assert isinstance(Tokenizer.from_file(tmp_path / name), Tokenizer)
+
+
+def test_encode(train_tokenizer: Callable[..., Path], text: str) -> None:
+    pth = train_tokenizer(name="encode")
+    tokenizer = Tokenizer.from_file(pth)
+    tokens = tokenizer.encode(text)
+    assert isinstance(tokens, list)
+    for x in tokens:
+        assert isinstance(x, int)
+
+
+def test_decode(train_tokenizer: Callable[..., Path], text: str) -> None:
+    pth = train_tokenizer(name="encode")
+    tokenizer = Tokenizer.from_file(pth)
+    assert tokenizer.decode(tokenizer.encode(text)) == text
+
+
+def test_eot_token(train_tokenizer: Callable[..., Path]) -> None:
+    pth = train_tokenizer(name="eot_id", special_tokens={"<|endoftext|>"})
+    with open(pth, "r") as f:
+        data = json.load(f)
+    tokenizer = Tokenizer.from_file(pth)
+    assert tokenizer.eot_token == data["special_tokens"].get("<|endoftext|>")
