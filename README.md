@@ -13,7 +13,7 @@ Contents:
 
 ## Training your own tokenizer
 
-To train your own tokenizer is very simple:
+Training a tokenizer is very simple:
 
 ```python
 from tokencoder.trainer import TokenizerTrainer
@@ -58,7 +58,7 @@ it behaves exactly like a tiktoken encoding would.
 
 Also, the `from_file` method accepts all arguments that the `Encoding` init method does,
 as keyword arguments. See [here](https://github.com/openai/tiktoken/tree/main?tab=readme-ov-file#extending-tiktoken)
-for more
+for more.
 
 ## Wrapping up
 
