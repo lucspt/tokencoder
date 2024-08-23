@@ -6,7 +6,6 @@ from pathlib import Path
 from tiktoken.core import Encoding
 
 from .types import PathLike
-from .patterns import DEFAULT_REGEX_PATTERN
 
 
 class Tokenizer(Encoding):
@@ -17,6 +16,7 @@ class Tokenizer(Encoding):
         special_tokens: dict[str, int] = {},
         **tiktoken_kwargs: Any,
     ) -> "Tokenizer":
+        """Load a tokenizer given `fp`."""
         fp = str(fp)
         fp = fp if fp.endswith(".json") else f"{fp}.json"
         with open(fp, "r") as f:
@@ -26,7 +26,7 @@ class Tokenizer(Encoding):
         return Tokenizer(
             name=name if name else Path(fp).stem,
             mergeable_ranks=mergeable_ranks,
-            pat_str=DEFAULT_REGEX_PATTERN,
+            pat_str=data["regex_pattern"],
             special_tokens=(data.get("special_tokens", {}) | special_tokens),
             **tiktoken_kwargs,
         )
