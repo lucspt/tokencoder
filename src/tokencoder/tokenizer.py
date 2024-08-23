@@ -16,7 +16,22 @@ class Tokenizer(Encoding):
         special_tokens: dict[str, int] = {},
         **tiktoken_kwargs: Any,
     ) -> "Tokenizer":
-        """Load a tokenizer given `fp`."""
+        """Load a tokenizer from `fp`.
+
+        Args:
+            fp (PathLike): A `Path` or string pointing to the tokenizer file.
+                If the path does not end with ".json" it will be added automatically.
+            special_tokens (dict[str, int]): A mapping of special tokens to their
+                token id.
+            tiktoken_kwargs: Keyword arguments to use when constructing the tiktoken
+                `Encoding` class.
+
+        Raises:
+            `FileNotFoundError`: When `fp` does not exist.
+
+        Returns:
+            `Tokenizer`: the Tokenizer object.
+        """
         fp = str(fp)
         fp = fp if fp.endswith(".json") else f"{fp}.json"
         with open(fp, "r") as f:
