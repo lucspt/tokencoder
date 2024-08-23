@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from tokencoder.trainer import TokenizerTrainer
+from tokencoder.patterns import GPT2_REGEX_PATTERN, DEFAULT_REGEX_PATTERN
 
 VOCAB_SIZE = 2**8 + 10
 
@@ -43,22 +44,38 @@ class TestTokenizerTrainer:
         assert len(txt) > 0
         assert res.stat().st_size > 0
 
-    @pytest.mark.parametrize("speical_tokens", ({"<|endoftext|>"}, {}))
+    @pytest.mark.parametrize(
+        "name,special_tokens,regex_pattern_string",
+        [
+            ("testone", {"<|endoftext|>"}, DEFAULT_REGEX_PATTERN),
+            ("testtwo", {}, GPT2_REGEX_PATTERN),
+        ],
+    )
     def test_filepath_contains_tokenizer_data(
         self,
-        speical_tokens: set[str],
-        train_text: str,
+        name: str,
+        special_tokens: set[str],
         train_tokenizer: Callable[..., Path],
+        regex_pattern_string: str,
     ) -> None:
-        pth = train_tokenizer(name="test_filepath", special_tokens=speical_tokens)
+        pth = train_tokenizer(
+            name=name,
+            special_tokens=special_tokens,
+            regex_pattern_string=regex_pattern_string,
+        )
 
         with open(pth, "r") as f:
             data = json.load(f)
-        assert "vocab" in data
-        if speical_tokens:
+
+        for x in ["vocab", "regex_pattern", "name"]:
+            assert x in data
+
+        assert data["name"] == name
+        assert data["regex_pattern"] == regex_pattern_string
+
+        if special_tokens:
             assert "special_tokens" in data
-        else:
-            assert "special_tokens" not in data
+            assert special_tokens & data["special_tokens"].keys()
 
     def test_train_when_file_exists(self, tmp_path: Path) -> None:
         name = "tokenizer_exists"
