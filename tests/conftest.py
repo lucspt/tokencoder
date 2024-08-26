@@ -1,5 +1,6 @@
-from typing import Any, Callable, Iterable, Generator
+from typing import Any, Generator
 from pathlib import Path
+from collections.abc import Callable, Iterable
 
 import pytest
 

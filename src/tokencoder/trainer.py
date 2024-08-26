@@ -1,8 +1,9 @@
 import json
 import base64
 import warnings
-from typing import TypeVar, Iterable, Optional
+from typing import TypeVar, Optional
 from pathlib import Path
+from collections.abc import Iterable
 
 import regex  # type: ignore
 
