@@ -96,3 +96,38 @@ class TestTokenizerTrainer:
     ) -> None:
         with pytest.raises(ValueError):
             train_tokenizer(vocab_size=2**8 - 1, name="testing")
+
+    def test_files_and_text_train_returns_same_merges(
+        self, train_tokenizer: Callable[..., Path], train_text: str, tmp_path: Path
+    ) -> None:
+        vocab_size, spt = 300, {"<|endoftext|>"}
+        text_pth = train_tokenizer(
+            text=train_text, vocab_size=vocab_size, special_tokens=spt, name="text_test"
+        )
+        file_pth = train_tokenizer(
+            files=[Path(__file__)],
+            name="file_test",
+            special_tokens=spt,
+            vocab_size=vocab_size,
+        )  # train text is this file
+        files_pth = train_tokenizer(
+            files=[Path(__file__), Path(__file__)],
+            name="files_text",
+            special_tokens=spt,
+            vocab_size=vocab_size,
+        )
+
+        tknzrs = []
+        for t in [text_pth, files_pth, file_pth]:
+            with open(t, "r") as f:
+                data = json.load(f)
+                del data["name"]
+                tknzrs.append(data)
+
+        assert tknzrs[0] == tknzrs[1] == tknzrs[2]
+
+    def test_raises_when_text_or_files_not_specified(
+        self, train_tokenizer: Callable[..., Path]
+    ) -> None:
+        with pytest.raises(ValueError):
+            train_tokenizer(vocab_size=300, name="rand", text=None, files=None)
