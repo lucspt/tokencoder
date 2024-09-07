@@ -7,7 +7,7 @@ dependencies = [
     "tiktoken>=0.7.0",
 ]
 readme = "README.md"
-requires-python = ">= 3.12"
+requires-python = ">= 3.11"
 
 [tool.rye]
 managed = true
