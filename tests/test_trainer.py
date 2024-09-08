@@ -145,6 +145,13 @@ class TestTokenizerTrainer:
         train_tokenizer(name="chunksize_test", files=files, file_read_chunksize=cs)
         spy.assert_called_once_with(files[0], chunksize=cs)
 
+    @pytest.fixture
+    def train_files(self, tmp_path: Path) -> list[Path]:
+        files = [tmp_path / "1.txt", tmp_path / "2.txt"]
+        for f in files:
+            f.write_text("hello" * 100)
+        return files
+
     def test_accepts_list_of_chunksizes(
         self,
         train_tokenizer: Callable[..., Path],
@@ -159,3 +166,11 @@ class TestTokenizerTrainer:
             files=files,
             file_read_chunksize=chunksizes,
         )
+
+    def test_read_file_chunks(self, train_files: list[Path]) -> None:
+        trainer = TokenizerTrainer(name="test")
+        chunks = trainer.files_to_chunks(files=train_files)
+        chars: list[str] = []
+        for x in chunks:
+            chars.extend(chr(o) for o in x)
+        assert "".join(chars) == "".join(x.read_text() for x in train_files)
