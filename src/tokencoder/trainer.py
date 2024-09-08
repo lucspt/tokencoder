@@ -7,10 +7,12 @@ from collections.abc import Iterable, Sequence, Generator
 
 import regex  # type: ignore
 
-from .types import Pair, Decoder, PathLike
+from .types import Pair, Merges, Decoder, PathLike
 from .patterns import DEFAULT_REGEX_PATTERN
 
 FilePath = TypeVar("FilePath", bound=PathLike)
+ChunkSize = Optional[int]
+ChunkSizes = Optional[int | list[Optional[int]]]
 
 
 class TokenizerTrainer:
@@ -114,11 +116,17 @@ class TokenizerTrainer:
         text: str,
         decoder: Decoder,
         vocab_size: int,
-    ) -> Decoder:
+        past_merges: Optional[Merges] = None,
+    ) -> tuple[Decoder, Merges]:
         """Perform byte pair merging on `text` and return the resulting vocab."""
         chunks: list[list[int]] = [
             list(c.encode("utf-8")) for c in regex.findall(self.regex_pattern, text)
         ]
+        if past_merges:
+            for pair, tok_id in past_merges.items():
+                chunks = [self.merge(c, pair, tok_id) for c in chunks]
+
+        merges = {}
         while (nth_merge := len(decoder)) < vocab_size:
             counts: dict[Pair, int] = {}
             for c in chunks:
@@ -130,11 +138,13 @@ class TokenizerTrainer:
             pair = max(counts, key=counts.get)  # type: ignore
             chunks = [self.merge(c, pair, nth_merge) for c in chunks]
             decoder[nth_merge] = decoder[pair[0]] + decoder[pair[1]]
+            merges[pair] = nth_merge
 
-        return decoder
+        return decoder, merges
 
+    @staticmethod
     def read_file_chunks(
-        self, fp: PathLike, chunksize: int = 1000000
+        fp: PathLike, chunksize: ChunkSize = -1
     ) -> Generator[str, None, None]:
         """Read a file in `chunksize` chunks."""
         with open(fp, "r") as f:
@@ -147,16 +157,20 @@ class TokenizerTrainer:
         *,
         vocab_size: int,
         decoder: Decoder,
-        chunksize: int = 1000000,
-    ) -> Decoder:
+        chunksize: ChunkSize = -1,
+        past_merges: Merges,
+    ) -> tuple[Decoder, Merges]:
         """Train a tokenizer on a file"""
         for text_chunk in self.read_file_chunks(fp, chunksize=chunksize):
             if len(decoder) >= vocab_size:
                 break
-            decoder = self._train_on_text(
-                text=text_chunk, decoder=decoder, vocab_size=vocab_size
+            decoder, past_merges = self._train_on_text(
+                text=text_chunk,
+                decoder=decoder,
+                vocab_size=vocab_size,
+                past_merges=past_merges,
             )
-        return decoder
+        return decoder, past_merges
 
     def _train_on_files(
         self,
@@ -164,14 +178,22 @@ class TokenizerTrainer:
         files: Iterable[PathLike],
         vocab_size: int,
         decoder: Decoder,
-        chunksize: int = 1000000,
+        chunksize: ChunkSizes = -1,
     ) -> Decoder:
         """Train a tokenizer on the given `files`"""
-        for f in set(files):
+        merges: Merges = {}
+        files_set = set(files)
+        if not isinstance(chunksize, list):
+            chunksize = [chunksize] * len(files_set)
+        for i, f in enumerate(files_set):
             if len(decoder) >= vocab_size:
                 break
-            decoder = self._train_on_file(
-                f, decoder=decoder, chunksize=chunksize, vocab_size=vocab_size
+            decoder, merges = self._train_on_file(
+                f,
+                decoder=decoder,
+                chunksize=chunksize[i],
+                vocab_size=vocab_size,
+                past_merges=merges,
             )
         return decoder
 
@@ -182,7 +204,7 @@ class TokenizerTrainer:
         files: Optional[Iterable[PathLike]] = None,
         text: Optional[str] = None,
         save_dir: Optional[PathLike] = None,
-        file_read_chunksize: int = 1000000,
+        file_read_chunksize: ChunkSizes = -1,
     ) -> str:
         """Train a save a tokenizer to `filepath`.
 
@@ -200,8 +222,8 @@ class TokenizerTrainer:
             files (Iterable[PathLike], optional): The files with text content to train in.
                 Must be specified if `text` is not passed, otherwise optional.
             save_dir (PathLike, optional): A `str` or `Path` directory to save the tokenizer data to.
-            file_read_chunksize: (int): The size of each chunk that the files will be read with
-                when loaded. Defaults to `1000000`
+            file_read_chunksize (int): The size of each chunk that the files will be read with
+                when loaded. Defaults to `-1` (the fulll file).
         """
         if not files and not text:
             raise ValueError("You must specify either `files` or `text` to train on.")
@@ -218,7 +240,7 @@ class TokenizerTrainer:
                 chunksize=file_read_chunksize,
             )
         elif text:
-            decoder = self._train_on_text(
+            decoder, _ = self._train_on_text(
                 text=text,
                 decoder=decoder,
                 vocab_size=vocab_size,

@@ -88,7 +88,9 @@ pymdown-extensions==10.9
     # via mkdocstrings
 pytest==8.3.2
     # via pytest-cov
+    # via pytest-mock
 pytest-cov==5.0.0
+pytest-mock==3.14.0
 python-dateutil==2.9.0.post0
     # via ghp-import
 pyyaml==6.0.2

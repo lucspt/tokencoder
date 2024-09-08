@@ -3,6 +3,7 @@ from typing import Callable
 from pathlib import Path
 
 import pytest
+from pytest_mock import MockerFixture
 
 from tokencoder.trainer import TokenizerTrainer
 from tokencoder.patterns import GPT2_REGEX_PATTERN, DEFAULT_REGEX_PATTERN
@@ -109,12 +110,14 @@ class TestTokenizerTrainer:
             name="file_test",
             special_tokens=spt,
             vocab_size=vocab_size,
+            file_read_chunksize=-1,
         )  # train text is this file
         files_pth = train_tokenizer(
             files=[Path(__file__), Path(__file__)],
             name="files_text",
             special_tokens=spt,
             vocab_size=vocab_size,
+            file_read_chunksize=-1,
         )
 
         tknzrs = []
@@ -131,3 +134,28 @@ class TestTokenizerTrainer:
     ) -> None:
         with pytest.raises(ValueError):
             train_tokenizer(vocab_size=300, name="rand", text=None, files=None)
+
+    def test_chunksize(
+        self, train_tokenizer: Callable[..., Path], mocker: MockerFixture
+    ) -> None:
+        from tokencoder.trainer import TokenizerTrainer as spy_class
+
+        spy = mocker.spy(spy_class, "read_file_chunks")
+        files, cs = [Path(__file__)], 1000000
+        train_tokenizer(name="chunksize_test", files=files, file_read_chunksize=cs)
+        spy.assert_called_once_with(files[0], chunksize=cs)
+
+    def test_accepts_list_of_chunksizes(
+        self,
+        train_tokenizer: Callable[..., Path],
+        tmp_path: Path,
+    ) -> None:
+        chunksizes = [-1, None]
+        files = [tmp_path / "1.txt", tmp_path / "2.txt"]
+        for f in files:
+            f.write_text("hello" * 100)
+        train_tokenizer(
+            name="list_chunksizes",
+            files=files,
+            file_read_chunksize=chunksizes,
+        )
