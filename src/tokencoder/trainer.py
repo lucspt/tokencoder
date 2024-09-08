@@ -1,13 +1,14 @@
 import json
 import base64
 import warnings
+import itertools
 from typing import TypeVar, Optional
 from pathlib import Path
 from collections.abc import Iterable, Sequence, Generator
 
 import regex  # type: ignore
 
-from .types import Pair, Merges, Decoder, PathLike
+from .types import Pair, Decoder, PathLike
 from .patterns import DEFAULT_REGEX_PATTERN
 
 FilePath = TypeVar("FilePath", bound=PathLike)
@@ -110,67 +111,58 @@ class TokenizerTrainer:
         decoder = {i: bytes([i]) for i in range(base_size)}
         return decoder
 
-    def _train_on_text(
+    def get_merged_chunks_generator(
+        self, chunks: Iterable[list[int]], pair: Pair, idx: int
+    ) -> Generator[list[int], None, None]:
+        for c in chunks:
+            yield self.merge(c, pair, idx)
+
+    def _train_on_chunks(
         self,
         *,
-        text: str,
+        chunks: Iterable[list[int]],
         decoder: Decoder,
         vocab_size: int,
-        past_merges: Optional[Merges] = None,
-    ) -> tuple[Decoder, Merges]:
+    ) -> Decoder:
         """Perform byte pair merging on `text` and return the resulting vocab."""
-        chunks: list[list[int]] = [
-            list(c.encode("utf-8")) for c in regex.findall(self.regex_pattern, text)
-        ]
-        if past_merges:
-            for pair, tok_id in past_merges.items():
-                chunks = [self.merge(c, pair, tok_id) for c in chunks]
-
-        merges = {}
         while (nth_merge := len(decoder)) < vocab_size:
             counts: dict[Pair, int] = {}
-            for c in chunks:
+            chunks_to_count, chunks_to_merge = itertools.tee(chunks, 2)
+            for c in chunks_to_count:
                 self.count_pairs(c, counts)
 
             if not counts:
                 break
 
             pair = max(counts, key=counts.get)  # type: ignore
-            chunks = [self.merge(c, pair, nth_merge) for c in chunks]
+            chunks = self.get_merged_chunks_generator(chunks_to_merge, pair, nth_merge)
             decoder[nth_merge] = decoder[pair[0]] + decoder[pair[1]]
-            merges[pair] = nth_merge
 
-        return decoder, merges
+        return decoder
 
     @staticmethod
     def read_file_chunks(
         fp: PathLike, chunksize: ChunkSize = -1
-    ) -> Generator[str, None, None]:
+    ) -> Generator[list[int], None, None]:
         """Read a file in `chunksize` chunks."""
         with open(fp, "r") as f:
             while chunk := f.read(chunksize):
-                yield chunk
+                rchunks = regex.findall(DEFAULT_REGEX_PATTERN, chunk)
+                for c in rchunks:
+                    yield list(c.encode("utf-8"))
 
-    def _train_on_file(
-        self,
-        fp: PathLike,
-        *,
-        vocab_size: int,
-        decoder: Decoder,
-        chunksize: ChunkSize = -1,
-        past_merges: Merges,
-    ) -> tuple[Decoder, Merges]:
-        """Train a tokenizer on a file"""
-        for text_chunk in self.read_file_chunks(fp, chunksize=chunksize):
-            if len(decoder) >= vocab_size:
-                break
-            decoder, past_merges = self._train_on_text(
-                text=text_chunk,
-                decoder=decoder,
-                vocab_size=vocab_size,
-                past_merges=past_merges,
+    def files_to_chunks(
+        self, files: Iterable[PathLike], chunksize: ChunkSizes = -1
+    ) -> itertools.chain[list[int]]:
+        """Given an iterable of files, extract all of their chunks"""
+        files_set = set(files)
+        if not isinstance(chunksize, list):
+            chunksize = [chunksize] * len(files_set)
+        return itertools.chain(
+            *tuple(
+                self.read_file_chunks(f, chunksize[i]) for i, f in enumerate(files_set)
             )
-        return decoder, past_merges
+        )
 
     def _train_on_files(
         self,
@@ -181,20 +173,12 @@ class TokenizerTrainer:
         chunksize: ChunkSizes = -1,
     ) -> Decoder:
         """Train a tokenizer on the given `files`"""
-        merges: Merges = {}
-        files_set = set(files)
-        if not isinstance(chunksize, list):
-            chunksize = [chunksize] * len(files_set)
-        for i, f in enumerate(files_set):
-            if len(decoder) >= vocab_size:
-                break
-            decoder, merges = self._train_on_file(
-                f,
-                decoder=decoder,
-                chunksize=chunksize[i],
-                vocab_size=vocab_size,
-                past_merges=merges,
-            )
+        file_chunks = self.files_to_chunks(files, chunksize=chunksize)
+        decoder = self._train_on_chunks(
+            chunks=file_chunks,
+            decoder=decoder,
+            vocab_size=vocab_size,
+        )
         return decoder
 
     def train(
@@ -240,8 +224,11 @@ class TokenizerTrainer:
                 chunksize=file_read_chunksize,
             )
         elif text:
-            decoder, _ = self._train_on_text(
-                text=text,
+            decoder = self._train_on_chunks(
+                chunks=[
+                    list(c.encode("utf-8"))
+                    for c in regex.findall(self.regex_pattern, text)
+                ],
                 decoder=decoder,
                 vocab_size=vocab_size,
             )
