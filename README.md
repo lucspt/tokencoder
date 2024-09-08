@@ -40,6 +40,38 @@ tokenizer_path = trainer.train(
 The example above writes a json file to `tokenizer_path` with all the data you need to construct
 a `Tokenizer` class.
 
+### Training from files
+
+In some cases, you might want to train from the text content of a file, or multiple. To do so, you can specify the `files` argument
+in the `train` function, like so:
+
+```python
+trainer.train(
+  files=["file1.txt", "file2.txt"],
+  vocab_size=10_000,
+)
+```
+
+By default, each file is fully loaded into memory for training. If a file is too large to fit in memory,
+you can load them in chunks with the `file_read_chunksize` argument.
+
+```python
+trainer.train(
+  files=["file1.txt", "file2.txt"],
+  vocab_size=10_000,
+  file_read_chunksize=1_000_000 # read the files in chunks of this size
+)
+```
+
+This will chunk the files and train on each chunk sequentially, and therefore is more memory efficient.
+You can pass an integer or a list of integers specifying the chunk size for each file. Note that a negative number
+and `None` will load the full file into memory.
+
+> [!NOTE]
+> If you specify the `file_read_chunksize`, there is a possibility of discrepancy
+> between training on the whole file and the chunked file. This is because of the way byte pair merging
+> works.
+
 ## Constructing a tokenizer
 
 Once you have trained and saved your tokenizer to a file, you can use the `from_file` method
