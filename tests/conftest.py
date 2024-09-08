@@ -1,6 +1,6 @@
 from typing import Any, Optional, Generator
 from pathlib import Path
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 
 import pytest
 
@@ -15,7 +15,7 @@ def train_tokenizer(
     def _train(
         *,
         name: str,
-        special_tokens: Optional[Sequence[str]] = None,
+        special_tokens: Optional[set[str]] = None,
         regex_pattern_string: str = DEFAULT_REGEX_PATTERN,
         **train_kwargs: Any,
     ) -> Path:

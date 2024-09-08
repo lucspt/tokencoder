@@ -4,7 +4,7 @@ import warnings
 import itertools
 from typing import TypeVar, Optional
 from pathlib import Path
-from collections.abc import Iterable, Sequence, Generator
+from collections.abc import Iterable, Generator
 
 import regex  # type: ignore
 
@@ -29,7 +29,7 @@ class TokenizerTrainer:
     def __init__(
         self,
         name: str,
-        special_tokens: Optional[Sequence[str]] = None,
+        special_tokens: Optional[set[str]] = None,
         regex_pattern_string: str = DEFAULT_REGEX_PATTERN,
     ) -> None:
         """Initialize a `TokenizerTrainer` class.
@@ -37,7 +37,7 @@ class TokenizerTrainer:
         This class allows you to train and save a `tiktoken` compatible tokenizer.
 
         Args:
-            special_tokens (Sequence[str], optional): The special tokens that will be used to create the tokenizer.
+            special_tokens (set[str], optional): The special tokens that will be used to create the tokenizer.
             regex_pattern_string (str): A regex pattern string to used to parse and chunk text data before training.
                 Unless you have a specific regex pattern you would like to train on, the default one is sufficient.
         """
